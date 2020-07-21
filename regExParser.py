@@ -1,11 +1,20 @@
-from graphviz import Digraph
-from time import sleep
-import sys
 import pygame
+import sys
+from graphviz import Digraph
 from pygame.locals import *
 
 index = 1
 
+def debugPrint(*args):
+    toPrint = ''
+    
+    for thing in args:
+        toPrint += str(thing) + ' '
+    
+    print ('DEBUG: ' + toPrint)
+
+
+# This is used for expressions of type M*
 def starOperator(graph):
 
     graph.transitionList.append(tuple([graph.initialState, graph.finalState, '&']))
@@ -13,6 +22,7 @@ def starOperator(graph):
     return graph
 
 
+# This is used for expressions of type L|R
 def orOperator(graphOne, graphTwo):
     global index
     
@@ -35,6 +45,7 @@ def orOperator(graphOne, graphTwo):
     return graphResult
 
 
+# This is used for expressions of type LR
 def andOperator(graphOne, graphTwo):
 
     graphResult = graph()
@@ -52,6 +63,7 @@ def andOperator(graphOne, graphTwo):
 class	graph:
 
     def __init__(self):
+    
         self.initialState = 0 # Initial state of the graph
         self.currentState = 0 # Used to check if a word can pass through the graph
         self.finalState = 0 # Final state 
@@ -59,45 +71,24 @@ class	graph:
         self.transitionList = list() # List of transitions, lt = [(A - the exit point, B - the entry point, L - the letter or symbol that connects A and B), ...] 
 
 
+    # Appends a new transition to the graph
     def appendTransition(self, exitPoint, entryPoint, letter):
-        self.transitionList.append(tuple(exitPoint, entryPoint, letter))
+    
+        self.transitionList.append(tuple([exitPoint, entryPoint, letter]))
 
-
+    
+    # Appends a new node to the graph
     def appendNode(self, nod):
+    
         self.nodesList.append(nod)
 
-
-    def graphDraw(self):
-
-        drawing = Digraph('automata', filename = 'graph')
-        drawing.attr('graph', size = '10, 4!')
-        drawing.attr('graph', dpi = '100')
-        drawing.attr('graph', rankdir="LR")
-        
-        drawing.attr('node', shape = 'none')
-        drawing.node('', width = '0!')
-        
-        if self.initialState == self.finalState:
-            drawing.attr('node', shape = 'doublecircle')
-            drawing.node(str(self.initialState))
-        else:
-            drawing.attr('node', shape = 'circle')
-            drawing.node(str(self.initialState))
-        drawing.edge('', str(self.initialState), style = 'dotted', label = 'START')
-
-        drawing.attr('node', shape = 'doublecircle')
-        if self.initialState != self.finalState:
-            drawing.node(str(self.finalState))
-        drawing.attr('node', shape = 'circle')
-        
-        for x in range(len(self.transitionList)):
-            drawing.edge(str(self.transitionList[x][0]), str(self.transitionList[x][1]), str(self.transitionList[x][2]))
-        
-        drawing.render(format = 'png')
     
-    def graphDrawTransition(self, transition, color):
+    # Draws the single node graph with colored transition
+    def graphDraw(self, name = 'graph', transition = None, color = 0):
 
-        if color % 3 == 0:
+        if color == 0:
+            color = 'black'
+        elif color % 3 == 0:
             color = 'red'
         elif color % 3 == 1:
             color = 'green'
@@ -105,7 +96,7 @@ class	graph:
             color = 'blue'
             
         
-        drawing = Digraph('automata', filename = 'graph')
+        drawing = Digraph('automata', filename = name)
         drawing.attr('graph', size = '10, 4!')
         drawing.attr('graph', dpi = '100')
         drawing.attr('graph', rankdir="LR")
@@ -113,19 +104,22 @@ class	graph:
         drawing.attr('node', shape = 'none')
         drawing.node('', width = '0!')
         
-        if self.initialState == self.finalState:
+        if (isinstance(self.finalState, list) and self.initialState in self.finalState) or self.initialState == self.finalState:
             drawing.attr('node', shape = 'doublecircle')
             drawing.node(str(self.initialState))
         else:
             drawing.attr('node', shape = 'circle')
             drawing.node(str(self.initialState))
         drawing.edge('', str(self.initialState), style = 'dotted', label = 'START')
-        
+            
         drawing.attr('node', shape = 'doublecircle')
-        if self.initialState != self.finalState:
+        if not isinstance(self.finalState, list) and self.initialState != self.finalState:
             drawing.node(str(self.finalState))
+        elif isinstance(self.finalState, list):
+            for node in self.finalState:
+                drawing.node(str(node))
         drawing.attr('node', shape = 'circle')
-        
+
         for x in range(len(self.transitionList)):
             if self.transitionList[x] == transition:
                 drawing.attr('edge', color = color)
@@ -135,39 +129,147 @@ class	graph:
         
         drawing.render(format = 'png')
     
-    def checkWord(self, word, roadList):
+    
+    # Tries to acces everything that can be accesed using an empty string
+    def lambdaSolver(self, node, nodeList):
+        
+        for transition in self.transitionList:
+            if transition[1] not in nodeList and transition[0] == node and transition[2] == '&':
+                nodeList.append(transition[1])
+                self.lambdaSolver(transition[1], nodeList)
+    
+    def inverseLambdaSolver(self, target):
+        
+        returnList = list()
+        
+        for node in self.nodeList:
+            auxList = list()
+            self.lambdaSolver(node, auxList)
+            
+            if node != target and target in auxList:
+                returnList.append(node)
+        
+        return returnList
+
+
+    # Tries to acces everything starting from a given node, using expression (&)*letter(&)*
+    def letterSolver(self, node, nodeList, letter, level = 0):
+        global visited
+        
+        if level == 0:
+            visited = list()
+        else:
+            visited.append(node)
+            
+        lambdaAcces = list()
+        self.lambdaSolver(node, lambdaAcces)
+        
+        # Here we try to acces letter(&)*
+        for transition in self.transitionList:
+            if transition[1] not in nodeList and transition[1] not in visited and transition[0] == node and transition[2] == letter:
+                nodeList.append(transition[1])
+                self.lambdaSolver(transition[1], nodeList)
+        
+        for element in lambdaAcces:
+            if element not in nodeList and element not in visited:
+                self.letterSolver(element, nodeList, letter, level + 1)
+        
+        nodeList.sort()
+    
+    
+    # A function that returns the symbols used in the graph
+    def symbols(self):
+        
+        symbols = list()
+        
+        for transition in self.transitionList:
+            if transition[2] not in symbols:
+                symbols.append(transition[2])
+        
+        return symbols
+    
+    
+    # This function transforms the graph from a λ-NFA to a DFA, and returns the result
+    def minimisation(self):
+    
+        DFA = graph()
+        symbols = self.symbols()
+        
+        DFA.initialState = DFA.currentState = [0]
+        index = 0
+        DFA.nodesList.append([0])
+        
+        while index < len(DFA.nodesList):
+            exitPoint = DFA.nodesList[index]
+            
+            for symbol in symbols:
+                if symbol != '&':
+                    entryPoint = list()
+                    
+                    for node in exitPoint: 
+                        self.letterSolver(node, entryPoint, symbol)
+                
+                    if len(entryPoint) != 0 and tuple([exitPoint, entryPoint, symbol]) not in DFA.transitionList:
+                        DFA.appendTransition(exitPoint, entryPoint, symbol)
+                        DFA.appendNode(entryPoint)
+                    
+                    
+            index += 1
+        
+        DFA.finalState = list()
+        for node in DFA.nodesList:
+            if self.finalState in node and node not in DFA.finalState:
+                DFA.finalState.append(node)
+        
+        DFA.graphDraw()
+        return DFA
+    
+    
+    # This checkWord works only for DFAs. If you apply the algorithm with some expressions (especially the '*' operator without minimisation) you may see a recurssion limit.
+    def checkWordRecursion(self, word, roadList):
+        '''
+        This was used to avoid dangerous behaviour, but it worked out fine
+        
+        if isinstance(self.finalState, list):
+            print ('ERROR: You called the checkWordRecurssion on a multi-state DFA!')
+        
+        
+        
+        To catch errors, if you change the code, use something like this:
+        
+        try:
+            self.checkWordRecursion(word, list())
+        except RecursionError as re:
+            print ('ERROR: Recursion Error - maybe you called the function on a NFA or lambda-NFA?')
+        '''
+        
         if len(word) == 0:
-            if self.currentState == self.finalState:
+            if isinstance(self.finalState, list) and self.currentState in self.finalState or self.currentState == self.finalState:
                 self.currentState = self.initialState
                 return roadList
             else:
                 self.currentState = self.initialState
                 return False
         
+
         for index in range(len(self.transitionList)):
-            if self.transitionList[index][0] == self.currentState:
-                if self.transitionList[index][2] == word[0]:
-                    self.currentState = self.transitionList[index][1]
-                    roadList.append(self.transitionList[index])
-                    possibleRoad = self.checkWord(word[1:], roadList)
-                    if possibleRoad:
-                        return possibleRoad
-                elif self.transitionList[index][2] == '&':
-                    self.currentState = self.transitionList[index][1]
-                    roadList.append(self.transitionList[index])
-                    possibleRoad = self.checkWord(word, roadList)
-                    if possibleRoad:
-                        return possibleRoad
+            if self.transitionList[index][0] == self.currentState and self.transitionList[index][2] == word[0]:
+                self.currentState = self.transitionList[index][1]
+                roadList.append(self.transitionList[index])
+                possibleRoad = self.checkWordRecursion(word[1:], roadList)
+                if possibleRoad:
+                    return possibleRoad
         return False
-    
+   
+
     def printGraph(self):
+    
         out = open('graph.in', 'w')
         out.write (str(len(self.nodesList)) + '\n')
         out.write (str(self.initialState) + '\n')
         out.write (str(self.finalState) + '\n')
-        for muchie in self.transitionList:
-            print (muchie)
-            out.write (str(muchie[0]) + ' ' + str(muchie[1]) + ' ' + str(muchie[2]) + '\n')
+        for transition in self.transitionList:
+            out.write (str(transition[0]) + ' ' + str(transition[1]) + ' ' + str(transition[2]) + '\n')
         out.close()
     
 
@@ -178,9 +280,11 @@ class	expression:
     alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@!?' # The alphabet that can be used in the expression
     
     def __init__(self, expressionText):
+    
         self.expression = expressionText
     
     def check(self, expression):
+    
         stack = list()
         
         if len(expression) == 0:
@@ -211,6 +315,7 @@ class	expression:
             return 1
     
     def findCharacter(self, string, caracter, surplus = 0):
+    
         try:
             poz = string.index(caracter)
             return poz + surplus
@@ -218,6 +323,7 @@ class	expression:
             return -1
     
     def findPair(self, string, poz_init):
+    
         stack = list()
         stack.append('(')
         
@@ -233,7 +339,7 @@ class	expression:
         
     def constructTree(self, expression):
         ''' 
-        The expression tree will look like something like:
+        The expression tree will look like the example below:
         [E0, +, [E1, +, [[E2, +, E3] | [E4, + [*, E5]]]]]
         Operations:
         1. L + R (L AND R)
@@ -359,7 +465,8 @@ class	expression:
             graf = starOperator(graf)
             return graf
     
-    def rezolve(self):
+    def rezolve(self, filename = ''):
+        
         if self.check(self.expression):
             print ('Expression is not valid!')
             return -1
@@ -369,71 +476,104 @@ class	expression:
         graph.nodesList.append(0)
         graph.transitionList.append(tuple([0, graph.initialState, '&']))
         graph.initialState = 0
-        graph.graphDraw()
+        graph.graphDraw('not-minimised')
         graph.printGraph()
 
-        pygame.init()
-        white = (255, 255, 255)
-        display_surface = pygame.display.set_mode((1000, 600))
-        pygame.display.set_caption('RegExp2NFA')
-
-        image = pygame.image.load('graph.png')
-        display_surface.blit(image, (0, 0))
-        pygame.display.update()
-        tickTime = pygame.time.get_ticks()
         word = ''
-        previousWord = ''
-        roadList = list()
-        while True:
-            display_surface.fill(white)
+        graph = graph.minimisation()
+        graph.graphDraw()
+        
+        if (filename != ''):
+            
+            file = open(filename, 'r')
+            line = file.readline()
+            linesNo = 1
+            
+            while line:
+                line = line.split()
+                appearances = 0
+                
+                for word in line:
+                    if graph.checkWordRecursion(word, list()):
+                        appearances += 1
+                
+                if appearances:
+                    print ('Found ' + str(appearances) + ' matches on line ' + str(linesNo) + '.')
+                line = file.readline()
+                linesNo += 1
+            
+            file.close()
+                    
+            
+        else:
+            pygame.init()
+            white = (255, 255, 255)
+            display_surface = pygame.display.set_mode((1000, 600))
+            pygame.display.set_caption('RegExp2NFA')
+                
+            image = pygame.image.load('graph.png')
             display_surface.blit(image, (0, 0))
-            for event in pygame.event.get():
-                if event.type == KEYDOWN and roadList != False and len(roadList) == 0:
-                    if event.unicode.isalpha():
-                        word += event.unicode
-                    elif event.key == K_BACKSPACE:
-                        word = word[:-1]
-                    elif event.key == K_RETURN:
-                        roadList = graph.checkWord(word, list())
-                        transitionIndex = 0
-                        if roadList:
-                            print ('Cuvant acceptat!')
-                        else:
-                            print ('Cuvant neacceptat!')
-                            roadList = list()
-                        word = ""
-                elif event.type == QUIT:
-                    pygame.quit() 
-                    quit()
-                    
-            if roadList != False and len(roadList) == 0 and len(word) > 0 and word != previousWord:
-                print (word)
-                previousWord = word
-            
             pygame.display.update()
-            if (pygame.time.get_ticks() > tickTime + 1000):
-                image = pygame.image.load('graph.png')
+            tickTime = pygame.time.get_ticks()
+            word = ''
+            previousWord = ''
+            roadList = list()
+            while True:
+                display_surface.fill(white)
                 display_surface.blit(image, (0, 0))
+                for event in pygame.event.get():
+                    if event.type == KEYDOWN and roadList != False and len(roadList) == 0:
+                        if event.unicode.isalpha():
+                            word += event.unicode
+                        elif event.key == K_BACKSPACE:
+                            word = word[:-1]
+                        elif event.key == K_RETURN:
+                            roadList = graph.checkWordRecursion(word, list())
+                            transitionIndex = 1
+                            if roadList:
+                                print ('Word matched!')
+                            else:
+                                print ('No match found, sorry!')
+                                roadList = list()
+                            word = ""
+                    elif event.type == QUIT:
+                        pygame.quit() 
+                        quit()
+                        
+                if roadList != False and len(roadList) == 0 and len(word) > 0 and word != previousWord:
+                    print (word)
+                    previousWord = word
+                
                 pygame.display.update()
-                tickTime = pygame.time.get_ticks()
-                if len(roadList) == 0:
-                    graph.graphDraw()
-                if roadList != False and len(roadList) > 0:
-                    graph.graphDrawTransition(roadList[0], transitionIndex)
-                    roadList = roadList[1:]
-                    transitionIndex += 1
-                    
-            
-            
+                if (pygame.time.get_ticks() > tickTime + 1000):
+                    image = pygame.image.load('graph.png')
+                    display_surface.blit(image, (0, 0))
+                    pygame.display.update()
+                    tickTime = pygame.time.get_ticks()
+                    if len(roadList) == 0:
+                        graph.graphDraw()
+                    if roadList != False and len(roadList) > 0:
+                        graph.graphDraw('graph', roadList[0], transitionIndex)
+                        roadList = roadList[1:]
+                        transitionIndex += 1
+
+
 # The main function
 if __name__ == "__main__":
-    if (len(sys.argv) != 3):
-        print ('Usage: python ' + str(sys.argv[0]) + ' {-f <filename> | -e expression}')
+    if (len(sys.argv) != 3 and len(sys.argv) != 4):
+        print ('Usage: python ' + str(sys.argv[0]) + ' {-f <filename> | -e expression} [<filename>]')
     elif (sys.argv[1] == '-f'):
         file = open(sys.argv[2], 'r')
         ex = expression(file.readline())
-        ex.rezolve()
+        if (len(sys.argv) == 4):
+            ex.rezolve(sys.argv[3])
+        else:
+            ex.rezolve()
         file.close()
     elif (sys.argv[1] == '-e'):
         ex = expression(sys.argv[2])
-        ex.rezolve()
+        if (len(sys.argv) == 4):
+            ex.rezolve(sys.argv[3])
+        else:
+            ex.rezolve()
+        
