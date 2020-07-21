@@ -127,7 +127,7 @@ class	graph:
             if self.transitionList[x] == transition:
                 drawing.attr('edge', color = 'black')
         
-        drawing.render(format = 'png')
+        drawing.render(format = 'png', cleanup = True)
     
     
     # Tries to acces everything that can be accesed using an empty string
