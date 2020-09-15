@@ -1,6 +1,6 @@
 # Regular Expression Parser
 
-### Description
+### Description:
 
 This is a simple Regular Expression parser written in Python. It applies concepts of Automata Theory (started as a homework for the Formal Languages and Automata course - but I cleaned the code and added some extra options), converting the Regular Expression into an expression tree used to build a λ-NFA that is minimised into a DFA - both the λ-NFA and DFA versions will be available, you can see them as .pngs in the source folder. The program also has a GUI that will show you the way the words are verified (avaible only for keyboard input).
 
